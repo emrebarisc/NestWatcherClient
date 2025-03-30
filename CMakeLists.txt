@@ -11,7 +11,18 @@ set(SOURCE_DIR_NAME "Source")
 set(SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/")
 set(SUBDIRS
     ${SOURCE_DIR_NAME}
+    ${SOURCE_DIR_NAME}/Managers
+    ${SOURCE_DIR_NAME}/Network
 )
+
+if(WIN32)
+	list(APPEND SUBDIRS ${SOURCE_DIR_NAME}/Network/Windows)
+	add_compile_definitions(PLATFORM_WINDOWS)
+else()
+	list(APPEND SUBDIRS ${SOURCE_DIR_NAME}/Network/Linux)
+	add_compile_definitions(PLATFORM_LINUX)
+endif()
+
 set(APP_SOURCE)
 
 foreach(SUBDIR ${SUBDIRS})
