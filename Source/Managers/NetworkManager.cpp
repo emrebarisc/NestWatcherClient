@@ -6,7 +6,6 @@
 #include <iostream>
 
 #include "Network/Command.h"
-
 #include "Network/NetworkInterface.h"
 
 #pragma comment(lib, "ws2_32.lib")
@@ -18,9 +17,7 @@ NetworkManager::NetworkManager()
 
 NetworkManager::~NetworkManager()
 {
-#ifdef PLATFORM_WINDOWS
-	WSACleanup();
-#endif
+    Cleanup();
 }
 
 void NetworkManager::Init()
@@ -42,7 +39,7 @@ void NetworkManager::Start()
     if (clientSocket == INVALID_SOCKET)
     {
         std::cerr << "Socket creation failed with error: " << WSAGetLastError() << std::endl;
-        WSACleanup();
+        Cleanup();
         return;
     }
 
@@ -53,8 +50,8 @@ void NetworkManager::Start()
     if (inet_pton(AF_INET, SERVER_IP, &serverAddress.sin_addr) <= 0)
     {
         std::cerr << "Invalid address or address not supported." << std::endl;
-        closesocket(clientSocket);
-        WSACleanup();
+        NetworkInterface::Close(clientSocket);
+        Cleanup();
         return;
     }
 
@@ -62,8 +59,8 @@ void NetworkManager::Start()
     if (connectResult == SOCKET_ERROR)
     {
         std::cerr << "Connection failed with error: " << WSAGetLastError() << std::endl;
-        closesocket(clientSocket);
-        WSACleanup();
+        NetworkInterface::Close(clientSocket);
+        Cleanup();
         return;
     }
 
@@ -88,5 +85,12 @@ void NetworkManager::Start()
     }
     delete takeAPhotoCommandMessage;
 
-    closesocket(clientSocket);
+    NetworkInterface::Close(clientSocket);
+}
+
+void NetworkManager::Cleanup()
+{
+#ifdef PLATFORM_WINDOWS
+    WSACleanup();
+#endif
 }

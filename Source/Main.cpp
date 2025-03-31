@@ -1,10 +1,10 @@
-#include "Managers/NetworkManager.h"
+#include "Program.h"
 
 int main()
 {
-    NetworkManager networkManager;
-    networkManager.Init();
-    networkManager.Start();
+    Program program;
+    program.Init();
+    program.Run();
 
     return 0;
 }

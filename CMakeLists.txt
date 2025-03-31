@@ -13,6 +13,7 @@ set(SUBDIRS
     ${SOURCE_DIR_NAME}
     ${SOURCE_DIR_NAME}/Managers
     ${SOURCE_DIR_NAME}/Network
+    ${SOURCE_DIR_NAME}/UI
 )
 
 if(WIN32)

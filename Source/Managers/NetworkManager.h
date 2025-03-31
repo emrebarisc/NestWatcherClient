@@ -15,6 +15,7 @@ public:
 	void Start() override;
 
 protected:
+	void Cleanup();
 
 private:
 };
