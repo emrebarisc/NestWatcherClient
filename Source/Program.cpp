@@ -11,7 +11,8 @@ Program::Program()
 
 Program::~Program()
 {
-
+	delete windowManager_;
+	delete networkManager_;
 }
 
 void Program::Init()
