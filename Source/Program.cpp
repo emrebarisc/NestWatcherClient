@@ -3,6 +3,8 @@
 #include "Managers/NetworkManager.h"
 #include "Managers/WindowManager.h"
 
+Program* Program::instance_ = nullptr;
+
 Program::Program()
 {
 	networkManager_ = new NetworkManager();
@@ -26,7 +28,7 @@ void Program::Run()
 	networkManager_->Start();
 	windowManager_->Start();
 
-	while (true)
+	while (!isPendingExit_)
 	{
 		windowManager_->PollEvent();
 	}

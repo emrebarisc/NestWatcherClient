@@ -2,9 +2,11 @@
 
 int main()
 {
-    Program program;
-    program.Init();
-    program.Run();
+    Program* program = Program::GetInstance();
+    program->Init();
+    program->Run();
+
+    delete program;
 
     return 0;
 }

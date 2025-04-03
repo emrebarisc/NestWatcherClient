@@ -3,6 +3,8 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_video.h>
 
+#include "Program.h"
+
 WindowManager::WindowManager()
 {
 
@@ -34,7 +36,7 @@ void WindowManager::PollEvent()
 	{
 		if (event.type == SDL_EVENT_QUIT)
 		{
-
+			Program::GetInstance()->SetIsPendingExit(true);
 		}
 	}
 }
