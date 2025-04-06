@@ -2,6 +2,7 @@
 
 #include "IManager.h"
 
+class SDL_Surface;
 class SDL_Window;
 
 class WindowManager : public IManager
@@ -15,8 +16,14 @@ public:
 
 	void PollEvent();
 
+	void UpdateCameraImageSurface(char imageRawData[]);
+
 protected:
 
 private:
+	SDL_Surface* windowSurface_{ nullptr };
 	SDL_Window* window_{ nullptr };
+
+	int windowWidth_{ 1600 };
+	int windowHeight_{ 900 };
 };

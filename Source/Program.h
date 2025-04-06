@@ -31,6 +31,16 @@ public:
 		return isPendingExit_;
 	}
 
+	NetworkManager* GetNetworkManager() const
+	{
+		return networkManager_;
+	}
+
+	WindowManager* GetWindowManager() const
+	{
+		return windowManager_;
+	}
+
 protected:
 
 private:

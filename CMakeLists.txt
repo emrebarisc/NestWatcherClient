@@ -50,4 +50,5 @@ target_include_directories(${APP_NAME} PUBLIC
 
 target_include_directories(${APP_NAME} PUBLIC 
     ${PROJECT_SOURCE_DIR}/${SOURCE_DIR_NAME}
+	Thirdparty/stb
 )

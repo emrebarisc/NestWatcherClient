@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <thread>
+#include <memory>
 
 #include "Network/Command.h"
 #include "Network/ImageCommand.h"
@@ -12,7 +13,16 @@
 
 #include "Network/NetworkInterface.h"
 
+#include "Program.h"
+#include "Managers/WindowManager.h"
+
 #pragma comment(lib, "ws2_32.lib")
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 NetworkManager::NetworkManager()
 {
@@ -21,6 +31,8 @@ NetworkManager::NetworkManager()
 
 NetworkManager::~NetworkManager()
 {
+    NetworkInterface::Close(clientSocket_);
+    NetworkInterface::Close(frameDataSocket_);
     Cleanup();
 }
 
@@ -68,37 +80,25 @@ void NetworkManager::Start()
         return;
     }
 
-    CommandMessage* commandMessage = new CommandMessage();
-    commandMessage->command = Command::Connect;
-    strncpy_s(commandMessage->commandMessage, sizeof(commandMessage->commandMessage), "Hello, Server!", _TRUNCATE);
+    CommandMessage commandMessage;
+    commandMessage.command = Command::Connect;
+    strncpy_s(commandMessage.commandMessage, sizeof(commandMessage.commandMessage), "Hello, Server!", _TRUNCATE);
 
-    int sendResult = NetworkInterface::Send(clientSocket_, (char*)commandMessage, sizeof(*commandMessage), 0);
+    int sendResult = NetworkInterface::Send(clientSocket_, (char*)&commandMessage, sizeof(commandMessage), 0);
     if (sendResult == SOCKET_ERROR)
     {
         std::cerr << "Send failed with error: " << WSAGetLastError() << std::endl;
     }
 
-    commandMessage->command = Command::TakeAPhotograph;
-    strncpy_s(commandMessage->commandMessage, sizeof(commandMessage->commandMessage), "TakeAPhotograph", _TRUNCATE);
-    sendResult = NetworkInterface::Send(clientSocket_, (char*)commandMessage, sizeof(*commandMessage), 0);
+    commandMessage.command = Command::TakeAPhotograph;
+    strncpy_s(commandMessage.commandMessage, sizeof(commandMessage.commandMessage), "TakeAPhotograph", _TRUNCATE);
+    sendResult = NetworkInterface::Send(clientSocket_, (char*)&commandMessage, sizeof(commandMessage), 0);
     if (sendResult == SOCKET_ERROR)
     {
         std::cerr << "Send failed with error: " << WSAGetLastError() << std::endl;
     }
 
-    commandMessage->command = Command::StartStream;
-    strncpy_s(commandMessage->commandMessage, sizeof(commandMessage->commandMessage), "StartStream", _TRUNCATE);
-    sendResult = NetworkInterface::Send(clientSocket_, (char*)commandMessage, sizeof(*commandMessage), 0);
-    if (sendResult == SOCKET_ERROR)
-    {
-        std::cerr << "Send failed with error: " << WSAGetLastError() << std::endl;
-    }
-
-    delete commandMessage;
-
-    StartListeningToServerForFrameData();
-
-    NetworkInterface::Close(clientSocket_);
+    std::thread(&NetworkManager::StartListeningToServerForFrameData, this).detach();
 }
 
 void NetworkManager::Cleanup()
@@ -108,8 +108,53 @@ void NetworkManager::Cleanup()
 #endif
 }
 
+const int WIDTH = 1920;
+const int HEIGHT = 1080;
+const int CHANNELS = 3;
+const int TILE_COLS = 16;
+const int TILE_ROWS = 9;
+const int TILE_WIDTH = WIDTH / TILE_COLS;
+const int TILE_HEIGHT = HEIGHT / TILE_ROWS;
+const int TOTAL_PIXELS = WIDTH * HEIGHT * CHANNELS;
+
+char colorPaletteImage[TOTAL_PIXELS];
+void GenerateColorPaletteImage() {
+
+    for (int row = 0; row < TILE_ROWS; ++row) {
+        for (int col = 0; col < TILE_COLS; ++col) {
+            // Color based on position in palette grid (rough HSV-like variation)
+            float hue = (float)col / TILE_COLS;
+            float brightness = 0.5f + 0.5f * ((float)row / TILE_ROWS);
+
+            unsigned char r = (unsigned char)(255 * brightness * hue);
+            unsigned char g = (unsigned char)(255 * brightness * (1.0f - hue));
+            unsigned char b = (unsigned char)(255 * (1.0f - brightness));
+
+            for (int y = row * TILE_HEIGHT; y < (row + 1) * TILE_HEIGHT; ++y) {
+                for (int x = col * TILE_WIDTH; x < (col + 1) * TILE_WIDTH; ++x) {
+                    int idx = (y * WIDTH + x) * CHANNELS;
+                    colorPaletteImage[idx] = r;
+                    colorPaletteImage[idx + 1] = g;
+                    colorPaletteImage[idx + 2] = b;
+                }
+            }
+        }
+    }
+}
+
+
+constexpr int cameraWidth = 1920;
+constexpr int cameraHeight = 1080;
+constexpr int pixelDepth = 3;
+constexpr int sectionCount = 3;
+constexpr int sectionSize = cameraWidth * pixelDepth / sectionCount;
+char buffer[cameraWidth + 2 * sizeof(int)];
+char image[cameraWidth * cameraHeight * pixelDepth];
+
 void NetworkManager::StartListeningToServerForFrameData()
 {
+    GenerateColorPaletteImage();
+
     frameDataSocket_ = NetworkInterface::CreateSocket(AF_INET, SOCK_DGRAM, 0);
 
     frameDataAddress_.sin_family = AF_INET;
@@ -125,30 +170,45 @@ void NetworkManager::StartListeningToServerForFrameData()
         return;
     }
 
-    std::cout << "Data server started." << std::endl;
-
-    ImageData imageData;
-    imageData.row = new uint8_t[1920];
-
     sockaddr_in serverAddress;
     socklen_t serverAddressSize = sizeof(serverAddress);
 
+    CommandMessage commandMessage;
+    commandMessage.command = Command::StartStream;
+    strncpy_s(commandMessage.commandMessage, sizeof(commandMessage.commandMessage), "StartStream", _TRUNCATE);
+    int sendResult = NetworkInterface::Send(clientSocket_, (char*)&commandMessage, sizeof(commandMessage), 0);
+    if (sendResult == SOCKET_ERROR)
+    {
+        std::cerr << "Send failed with error: " << WSAGetLastError() << std::endl;
+    }
+
+    memset(image, 0xFF, cameraWidth * cameraHeight * pixelDepth);
+
+    std::cout << "Listening image data" << std::endl;
     while (true)
     {
-        CommandMessage commandMessage;
-        commandMessage.command = Command::StartStream;
-        strncpy_s(commandMessage.commandMessage, sizeof(commandMessage.commandMessage), "StartStream", _TRUNCATE);
-        int sendResult = NetworkInterface::Send(clientSocket_, (char*)&commandMessage, sizeof(commandMessage), 0);
-        if (sendResult == SOCKET_ERROR)
-        {
-            std::cerr << "Send failed with error: " << WSAGetLastError() << std::endl;
-        }
+        int received = NetworkInterface::ReceiveFrom(frameDataSocket_, buffer, sizeof(buffer), 0, (sockaddr*)&serverAddress, &serverAddressSize);
 
-        while (0 < NetworkInterface::ReceiveFrom(frameDataSocket_, (char*)&imageData, sizeof(imageData), 0, (sockaddr*)&serverAddress, &serverAddressSize))
+        if (sizeof(ImageData) <= received)
         {
-            std::cout << "Row index " << imageData.rowIndex << " received from " << inet_ntoa(serverAddress.sin_addr) << std::endl;
-        }
+            int rowIndex;
+            memcpy(&rowIndex, buffer, sizeof(int));
 
-        NetworkInterface::Close(frameDataSocket_);
+            int sectionIndex = 0;
+            memcpy(&sectionIndex, buffer + sizeof(int), sizeof(int));
+
+            const int rowStart = rowIndex * cameraWidth * pixelDepth;
+            const int sectionOffset = sectionIndex * sectionSize;
+            memcpy(image + rowStart + sectionOffset, buffer + 2 * sizeof(int), sectionSize);
+
+            if (rowIndex == (cameraHeight - 1) && sectionIndex == (sectionCount - 1))
+            {
+                Program::GetInstance()->GetWindowManager()->UpdateCameraImageSurface(image);
+                //stbi_write_png("C:/Users/Baris/Desktop/Test.png", cameraWidth, cameraHeight, pixelDepth, image, cameraWidth * pixelDepth);
+                //stbi_write_png("C:/Users/Baris/Desktop/Test.png", cameraWidth, cameraHeight, pixelDepth, colorPaletteImage, cameraWidth * pixelDepth);
+            }
+        }
     }
+
+    NetworkInterface::Close(frameDataSocket_);
 }
