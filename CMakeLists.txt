@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(APP_NAME NestWatcherServer)
+set(APP_NAME NestWatcherClient)
 
 project(${APP_NAME})
 
@@ -41,12 +41,13 @@ target_include_directories(${APP_NAME} PUBLIC
     Thirdparty/imgui/Repo
 )
 
+set(SDL_STATIC ON)
+
 add_subdirectory(Thirdparty/SDL/)
-target_link_libraries(${APP_NAME} PUBLIC SDL3-static)
+target_link_libraries(${APP_NAME} PUBLIC SDL3::SDL3-static)
 target_include_directories(${APP_NAME} PUBLIC 
     Thirdparty/SDL/include
 )
-
 
 target_include_directories(${APP_NAME} PUBLIC 
     ${PROJECT_SOURCE_DIR}/${SOURCE_DIR_NAME}
