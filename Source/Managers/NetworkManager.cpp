@@ -108,53 +108,16 @@ void NetworkManager::Cleanup()
 #endif
 }
 
-const int WIDTH = 1920;
-const int HEIGHT = 1080;
-const int CHANNELS = 3;
-const int TILE_COLS = 16;
-const int TILE_ROWS = 9;
-const int TILE_WIDTH = WIDTH / TILE_COLS;
-const int TILE_HEIGHT = HEIGHT / TILE_ROWS;
-const int TOTAL_PIXELS = WIDTH * HEIGHT * CHANNELS;
-
-char colorPaletteImage[TOTAL_PIXELS];
-void GenerateColorPaletteImage() {
-
-    for (int row = 0; row < TILE_ROWS; ++row) {
-        for (int col = 0; col < TILE_COLS; ++col) {
-            // Color based on position in palette grid (rough HSV-like variation)
-            float hue = (float)col / TILE_COLS;
-            float brightness = 0.5f + 0.5f * ((float)row / TILE_ROWS);
-
-            unsigned char r = (unsigned char)(255 * brightness * hue);
-            unsigned char g = (unsigned char)(255 * brightness * (1.0f - hue));
-            unsigned char b = (unsigned char)(255 * (1.0f - brightness));
-
-            for (int y = row * TILE_HEIGHT; y < (row + 1) * TILE_HEIGHT; ++y) {
-                for (int x = col * TILE_WIDTH; x < (col + 1) * TILE_WIDTH; ++x) {
-                    int idx = (y * WIDTH + x) * CHANNELS;
-                    colorPaletteImage[idx] = r;
-                    colorPaletteImage[idx + 1] = g;
-                    colorPaletteImage[idx + 2] = b;
-                }
-            }
-        }
-    }
-}
-
-
 constexpr int cameraWidth = 1920;
 constexpr int cameraHeight = 1080;
-constexpr int pixelDepth = 3;
+constexpr int colorDepth = 3;
 constexpr int sectionCount = 3;
-constexpr int sectionSize = cameraWidth * pixelDepth / sectionCount;
+constexpr int sectionSize = cameraWidth * colorDepth / sectionCount;
 char buffer[cameraWidth + 2 * sizeof(int)];
-char image[cameraWidth * cameraHeight * pixelDepth];
+char image[cameraWidth * cameraHeight * colorDepth];
 
 void NetworkManager::StartListeningToServerForFrameData()
 {
-    GenerateColorPaletteImage();
-
     frameDataSocket_ = NetworkInterface::CreateSocket(AF_INET, SOCK_DGRAM, 0);
 
     frameDataAddress_.sin_family = AF_INET;
@@ -182,14 +145,14 @@ void NetworkManager::StartListeningToServerForFrameData()
         std::cerr << "Send failed with error: " << WSAGetLastError() << std::endl;
     }
 
-    memset(image, 0xFF, cameraWidth * cameraHeight * pixelDepth);
+    memset(image, 0x00, cameraWidth * cameraHeight * colorDepth);
 
     std::cout << "Listening image data" << std::endl;
     while (true)
     {
         int received = NetworkInterface::ReceiveFrom(frameDataSocket_, buffer, sizeof(buffer), 0, (sockaddr*)&serverAddress, &serverAddressSize);
 
-        if (sizeof(ImageData) <= received)
+        if ((sizeof(ImageData::rowIndex) + sizeof(ImageData::sectionIndex) + sectionSize) <= received)
         {
             int rowIndex;
             memcpy(&rowIndex, buffer, sizeof(int));
@@ -197,15 +160,14 @@ void NetworkManager::StartListeningToServerForFrameData()
             int sectionIndex = 0;
             memcpy(&sectionIndex, buffer + sizeof(int), sizeof(int));
 
-            const int rowStart = rowIndex * cameraWidth * pixelDepth;
+            const int rowStart = rowIndex * cameraWidth * colorDepth;
             const int sectionOffset = sectionIndex * sectionSize;
-            memcpy(image + rowStart + sectionOffset, buffer + 2 * sizeof(int), sectionSize);
+            memcpy(image + rowStart + sectionOffset, &buffer[2 * sizeof(int)], sectionSize);
 
             if (rowIndex == (cameraHeight - 1) && sectionIndex == (sectionCount - 1))
             {
                 Program::GetInstance()->GetWindowManager()->UpdateCameraImageSurface(image);
-                //stbi_write_png("C:/Users/Baris/Desktop/Test.png", cameraWidth, cameraHeight, pixelDepth, image, cameraWidth * pixelDepth);
-                //stbi_write_png("C:/Users/Baris/Desktop/Test.png", cameraWidth, cameraHeight, pixelDepth, colorPaletteImage, cameraWidth * pixelDepth);
+                //stbi_write_png("C:/Users/Baris/Desktop/Test.png", cameraWidth, cameraHeight, colorDepth, image, cameraWidth * colorDepth);
             }
         }
     }
