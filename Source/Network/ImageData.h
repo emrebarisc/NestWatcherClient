@@ -1,14 +1,12 @@
 #pragma once
 
-class ImageData
+class alignas(sizeof(uint8_t*)) ImageData
 {
 public:
 	ImageData(){}
-	~ImageData()
-	{
-		delete[] row;
-	}
+	~ImageData();
 
-	int rowIndex;
-	uint8_t* row;
+	int rowIndex{ 0 };
+	int sectionIndex{ 0 };
+	uint8_t row[1920];
 };

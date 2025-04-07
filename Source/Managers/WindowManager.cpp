@@ -73,13 +73,19 @@ void WindowManager::UpdateCameraImageSurface(char imageRawData[])
 		pitch
 	);
 
-	if (!newSurface) {
+	if (!newSurface)
+	{
 		std::cerr << "Failed to create image surface: " << SDL_GetError() << std::endl;
 		return;
 	}
 
-	SDL_BlitSurface(newSurface, nullptr, windowSurface_, nullptr);
-	SDL_UpdateWindowSurface(window_);
+	SDL_Rect destRect = { 0, 0, windowWidth_, windowHeight_ };
 
+	if (!SDL_BlitSurfaceScaled(newSurface, nullptr, windowSurface_, &destRect, SDL_SCALEMODE_NEAREST)) 
+	{
+		std::cerr << "Failed to blit scaled surface: " << SDL_GetError() << std::endl;
+	}
+
+	SDL_UpdateWindowSurface(window_);
 	SDL_DestroySurface(newSurface);
 }
