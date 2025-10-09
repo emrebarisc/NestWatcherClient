@@ -6,6 +6,12 @@
 
 #define SERVER_IP "192.168.31.154"
 
+constexpr int CAMERA_WIDTH = 1920;
+constexpr int CAMERA_HEIGHT = 1080;
+constexpr int COLOR_DEPTH = 3;
+constexpr int SECTION_COUNT = 3;
+constexpr int SECTION_SIZE = CAMERA_WIDTH * COLOR_DEPTH / SECTION_COUNT;
+
 class NetworkManager : public IManager
 {
 public:

@@ -108,13 +108,8 @@ void NetworkManager::Cleanup()
 #endif
 }
 
-constexpr int cameraWidth = 1920;
-constexpr int cameraHeight = 1080;
-constexpr int colorDepth = 3;
-constexpr int sectionCount = 3;
-constexpr int sectionSize = cameraWidth * colorDepth / sectionCount;
-char buffer[cameraWidth + 2 * sizeof(int)];
-char image[cameraWidth * cameraHeight * colorDepth];
+char buffer[CAMERA_WIDTH + sizeof(ImageData::rowIndex) + sizeof(ImageData::sectionIndex)];
+unsigned char image[CAMERA_WIDTH * CAMERA_HEIGHT * COLOR_DEPTH];
 
 void NetworkManager::StartListeningToServerForFrameData()
 {
@@ -145,29 +140,30 @@ void NetworkManager::StartListeningToServerForFrameData()
         std::cerr << "Send failed with error: " << WSAGetLastError() << std::endl;
     }
 
-    memset(image, 0x00, cameraWidth * cameraHeight * colorDepth);
+    memset(image, 0x00, CAMERA_WIDTH * CAMERA_HEIGHT * COLOR_DEPTH);
 
     std::cout << "Listening image data" << std::endl;
+
     while (true)
     {
         int received = NetworkInterface::ReceiveFrom(frameDataSocket_, buffer, sizeof(buffer), 0, (sockaddr*)&serverAddress, &serverAddressSize);
 
-        if ((sizeof(ImageData::rowIndex) + sizeof(ImageData::sectionIndex) + sectionSize) <= received)
+        if ((sizeof(ImageData::rowIndex) + sizeof(ImageData::sectionIndex) + SECTION_SIZE) <= received)
         {
             int rowIndex;
             memcpy(&rowIndex, buffer, sizeof(int));
 
             int sectionIndex = 0;
-            memcpy(&sectionIndex, buffer + sizeof(int), sizeof(int));
+            memcpy(&sectionIndex, buffer + sizeof(ImageData::rowIndex), sizeof(ImageData::sectionIndex));
 
-            const int rowStart = rowIndex * cameraWidth * colorDepth;
-            const int sectionOffset = sectionIndex * sectionSize;
-            memcpy(image + rowStart + sectionOffset, &buffer[2 * sizeof(int)], sectionSize);
+            const int rowStart = rowIndex * CAMERA_WIDTH * COLOR_DEPTH;
+            const int sectionOffset = sectionIndex * SECTION_SIZE;
+            memcpy(image + rowStart + sectionOffset, &buffer[sizeof(ImageData::rowIndex) + sizeof(ImageData::sectionIndex)], SECTION_SIZE);
 
-            if (rowIndex == (cameraHeight - 1) && sectionIndex == (sectionCount - 1))
+            if (rowIndex == (CAMERA_HEIGHT - 1) && sectionIndex == (SECTION_COUNT - 1))
             {
                 Program::GetInstance()->GetWindowManager()->UpdateCameraImageSurface(image);
-                //stbi_write_png("C:/Users/Baris/Desktop/Test.png", cameraWidth, cameraHeight, colorDepth, image, cameraWidth * colorDepth);
+                //stbi_write_png("C:/Users/Baris/Desktop/Test.png", CAMERA_WIDTH, CAMERA_HEIGHT, COLOR_DEPTH, image, CAMERA_WIDTH * COLOR_DEPTH);
             }
         }
     }

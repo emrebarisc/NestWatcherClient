@@ -16,7 +16,7 @@ public:
 
 	void PollEvent();
 
-	void UpdateCameraImageSurface(char imageRawData[]);
+	void UpdateCameraImageSurface(unsigned char imageRawData[]);
 
 protected:
 

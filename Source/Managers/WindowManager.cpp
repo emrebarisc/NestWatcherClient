@@ -59,11 +59,12 @@ void WindowManager::PollEvent()
 	}
 }
 
-void WindowManager::UpdateCameraImageSurface(char imageRawData[])
+void WindowManager::UpdateCameraImageSurface(unsigned char imageRawData[])
 {
-	constexpr int width = 1920;
-	constexpr int height = 1080;
-	constexpr int pitch = width * 3;
+	constexpr int width = CAMERA_WIDTH;
+	constexpr int height = CAMERA_HEIGHT;
+	constexpr int depth = COLOR_DEPTH;
+	constexpr int pitch = width * depth;
 
 	SDL_Surface* newSurface = SDL_CreateSurfaceFrom(
 		width,
@@ -84,6 +85,8 @@ void WindowManager::UpdateCameraImageSurface(char imageRawData[])
 	if (!SDL_BlitSurfaceScaled(newSurface, nullptr, windowSurface_, &destRect, SDL_SCALEMODE_NEAREST)) 
 	{
 		std::cerr << "Failed to blit scaled surface: " << SDL_GetError() << std::endl;
+		SDL_DestroySurface(newSurface);
+		return;
 	}
 
 	SDL_UpdateWindowSurface(window_);
