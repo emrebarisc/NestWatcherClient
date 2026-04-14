@@ -52,13 +52,18 @@ void NetworkManager::Init()
 #endif
 }
 
+void NetworkManager::SetServerIP(const std::string& ip)
+{
+    serverIP_ = ip;
+}
+
 void NetworkManager::Start()
 {
     clientSocket_ = NetworkInterface::CreateSocket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
     if (clientSocket_ == INVALID_SOCKET)
     {
-        std::cerr << "Socket creation failed with error: " << WSAGetLastError() << std::endl;
+        std::cerr << "Socket creation failed..." << std::endl;
         Cleanup();
         return;
     }
@@ -67,9 +72,9 @@ void NetworkManager::Start()
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = htons(SERVER_PORT);
 
-    if (inet_pton(AF_INET, SERVER_IP, &serverAddress.sin_addr) <= 0)
+    if (inet_pton(AF_INET, serverIP_.c_str(), &serverAddress.sin_addr) <= 0)
     {
-        std::cerr << "Invalid address or address not supported." << std::endl;
+        std::cerr << "Invalid address or address not supported: " << serverIP_ << std::endl;
         NetworkInterface::Close(clientSocket_);
         Cleanup();
         return;
@@ -178,8 +183,6 @@ void NetworkManager::StartListeningToServerForFrameData()
 
                 int w, h, channels;
                 unsigned char* pixels = stbi_load_from_memory(jpegData.data(), jpegData.size(), &w, &h, &channels, 3);
-
-                stbi_write_jpg("C:/Users/Baris/Desktop/Output.jpg", w, h, channels, pixels, 100);
 
                 if (pixels)
                 {

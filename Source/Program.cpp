@@ -25,7 +25,11 @@ void Program::Init()
 
 void Program::Run()
 {
+	networkManager_->SetServerIP("192.168.31.154");
+	//networkManager_->SetServerIP("10.42.0.1");
+
 	networkManager_->Start();
+
 	windowManager_->Start();
 
 	while (!isPendingExit_)

@@ -76,7 +76,6 @@ void WindowManager::UpdateCameraImageSurface(unsigned char* imageRawData, int wi
 			SDL_DestroyTexture(cameraTexture_);
 		}
 
-		// Change the pixel format here to RGB24 to support RGB888 data
 		cameraTexture_ = SDL_CreateTexture(
 			renderer_,
 			SDL_PIXELFORMAT_RGB24,

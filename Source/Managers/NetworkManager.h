@@ -3,8 +3,7 @@
 #include "IManager.h"
 
 #include <ws2tcpip.h>
-
-#define SERVER_IP "192.168.31.154"
+#include <string>
 
 constexpr int CAMERA_WIDTH = 1920;
 constexpr int CAMERA_HEIGHT = 1080;
@@ -20,6 +19,7 @@ public:
 
 	void Init() override;
 	void Start() override;
+	void SetServerIP(const std::string& ip);
 
 protected:
 	void Cleanup();
@@ -30,6 +30,8 @@ private:
 	static constexpr int SERVER_PORT{ 1000 };
 	static constexpr int FRAME_DATA_PORT{ 1001 };
 	static constexpr int CAMERA_IMAGE_COMMAND_PORT{ 1002 };
+
+	std::string serverIP_{ "127.0.0.1" };
 
 	sockaddr_in frameDataAddress_{ 0 };
 
