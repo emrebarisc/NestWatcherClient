@@ -1,3 +1,5 @@
+#define NOMINMAX // Fixes the std::max compiler error caused by winsock2.h
+
 #include "NetworkManager.h"
 
 #include <winsock2.h>
@@ -6,11 +8,13 @@
 #include <iostream>
 #include <thread>
 #include <memory>
+#include <map>
+#include <vector>
+#include <algorithm>
 
 #include "Network/Command.h"
 #include "Network/ImageCommand.h"
 #include "Network/ImageData.h"
-
 #include "Network/NetworkInterface.h"
 
 #include "Program.h"
@@ -26,7 +30,7 @@
 
 NetworkManager::NetworkManager()
 {
-	
+
 }
 
 NetworkManager::~NetworkManager()
@@ -108,9 +112,6 @@ void NetworkManager::Cleanup()
 #endif
 }
 
-char buffer[CAMERA_WIDTH + sizeof(ImageData::rowIndex) + sizeof(ImageData::sectionIndex)];
-unsigned char image[CAMERA_WIDTH * CAMERA_HEIGHT * COLOR_DEPTH];
-
 void NetworkManager::StartListeningToServerForFrameData()
 {
     frameDataSocket_ = NetworkInterface::CreateSocket(AF_INET, SOCK_DGRAM, 0);
@@ -124,7 +125,6 @@ void NetworkManager::StartListeningToServerForFrameData()
     {
         std::cerr << "Failed to bind frame data address with error: " << WSAGetLastError() << std::endl;
         NetworkInterface::Close(frameDataSocket_);
-    
         return;
     }
 
@@ -140,30 +140,64 @@ void NetworkManager::StartListeningToServerForFrameData()
         std::cerr << "Send failed with error: " << WSAGetLastError() << std::endl;
     }
 
-    memset(image, 0x00, CAMERA_WIDTH * CAMERA_HEIGHT * COLOR_DEPTH);
-
     std::cout << "Listening image data" << std::endl;
+
+    std::map<uint32_t, std::vector<ImageData>> frameBufferMap;
+    uint32_t latestFrameId = 0;
+    ImageData buffer;
 
     while (true)
     {
-        int received = NetworkInterface::ReceiveFrom(frameDataSocket_, buffer, sizeof(buffer), 0, (sockaddr*)&serverAddress, &serverAddressSize);
+        int received = NetworkInterface::ReceiveFrom(frameDataSocket_, (char*)&buffer, sizeof(ImageData), 0, (sockaddr*)&serverAddress, &serverAddressSize);
 
-        if ((sizeof(ImageData::rowIndex) + sizeof(ImageData::sectionIndex) + SECTION_SIZE) <= received)
+        if (received > 0)
         {
-            int rowIndex;
-            memcpy(&rowIndex, buffer, sizeof(int));
-
-            int sectionIndex = 0;
-            memcpy(&sectionIndex, buffer + sizeof(ImageData::rowIndex), sizeof(ImageData::sectionIndex));
-
-            const int rowStart = rowIndex * CAMERA_WIDTH * COLOR_DEPTH;
-            const int sectionOffset = sectionIndex * SECTION_SIZE;
-            memcpy(image + rowStart + sectionOffset, &buffer[sizeof(ImageData::rowIndex) + sizeof(ImageData::sectionIndex)], SECTION_SIZE);
-
-            if (rowIndex == (CAMERA_HEIGHT - 1) && sectionIndex == (SECTION_COUNT - 1))
+            if (buffer.frameId < latestFrameId && (latestFrameId - buffer.frameId) > 10)
             {
-                Program::GetInstance()->GetWindowManager()->UpdateCameraImageSurface(image);
-                //stbi_write_png("C:/Users/Baris/Desktop/Test.png", CAMERA_WIDTH, CAMERA_HEIGHT, COLOR_DEPTH, image, CAMERA_WIDTH * COLOR_DEPTH);
+                continue;
+            }
+
+            latestFrameId = std::max(latestFrameId, buffer.frameId);
+            frameBufferMap[buffer.frameId].push_back(buffer);
+
+            if (frameBufferMap[buffer.frameId].size() == buffer.totalChunks)
+            {
+                auto& chunks = frameBufferMap[buffer.frameId];
+
+                std::sort(chunks.begin(), chunks.end(), [](const ImageData& a, const ImageData& b)
+                    {
+                        return a.chunkIndex < b.chunkIndex;
+                    });
+
+                std::vector<uint8_t> jpegData;
+                jpegData.reserve(buffer.totalChunks * 1024);
+                for (const auto& chunk : chunks)
+                {
+                    jpegData.insert(jpegData.end(), chunk.data, chunk.data + chunk.dataSize);
+                }
+
+                int w, h, channels;
+                unsigned char* pixels = stbi_load_from_memory(jpegData.data(), jpegData.size(), &w, &h, &channels, 3);
+
+                stbi_write_jpg("C:/Users/Baris/Desktop/Output.jpg", w, h, channels, pixels, 100);
+
+                if (pixels)
+                {
+                    Program::GetInstance()->GetWindowManager()->UpdateCameraImageSurface(pixels, w, h);
+                    stbi_image_free(pixels);
+                }
+
+                for (auto it = frameBufferMap.begin(); it != frameBufferMap.end(); )
+                {
+                    if (it->first <= buffer.frameId)
+                    {
+                        it = frameBufferMap.erase(it);
+                    }
+                    else
+                    {
+                        ++it;
+                    }
+                }
             }
         }
     }

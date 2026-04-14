@@ -4,10 +4,9 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_video.h>
-#include <SDL3/SDL_surface.h>
+#include <SDL3/SDL_render.h>
 
 #include "Program.h"
-#include "Managers/NetworkManager.h"
 
 WindowManager::WindowManager()
 {
@@ -16,8 +15,9 @@ WindowManager::WindowManager()
 
 WindowManager::~WindowManager()
 {
-	SDL_DestroySurface(windowSurface_);
-	SDL_DestroyWindow(window_);
+	if (cameraTexture_) SDL_DestroyTexture(cameraTexture_);
+	if (renderer_) SDL_DestroyRenderer(renderer_);
+	if (window_) SDL_DestroyWindow(window_);
 
 	SDL_Quit();
 }
@@ -26,18 +26,21 @@ void WindowManager::Init()
 {
 	SDL_Init(SDL_INIT_VIDEO);
 
-	window_ = SDL_CreateWindow("Nest Watcher Client", windowWidth_, windowHeight_, SDL_WINDOW_VULKAN);
+	// Remove SDL_WINDOW_VULKAN unless you are natively writing Vulkan code.
+	// We use SDL_WINDOW_RESIZABLE so you can dynamically scale the camera view.
+	window_ = SDL_CreateWindow("Nest Watcher Client", windowWidth_, windowHeight_, SDL_WINDOW_RESIZABLE);
 
 	if (!window_)
 	{
-		std::cerr << "Could not create window." << std::endl;
+		std::cerr << "Could not create window: " << SDL_GetError() << std::endl;
 		return;
 	}
 
-	windowSurface_ = SDL_GetWindowSurface(window_);
-	if (!windowSurface_)
+	// Create hardware-accelerated renderer
+	renderer_ = SDL_CreateRenderer(window_, nullptr);
+	if (!renderer_)
 	{
-		std::cerr << "Could not create surface." << std::endl;
+		std::cerr << "Could not create renderer: " << SDL_GetError() << std::endl;
 		return;
 	}
 }
@@ -59,36 +62,39 @@ void WindowManager::PollEvent()
 	}
 }
 
-void WindowManager::UpdateCameraImageSurface(unsigned char imageRawData[])
+void WindowManager::UpdateCameraImageSurface(unsigned char* imageRawData, int width, int height)
 {
-	constexpr int width = CAMERA_WIDTH;
-	constexpr int height = CAMERA_HEIGHT;
-	constexpr int depth = COLOR_DEPTH;
-	constexpr int pitch = width * depth;
-
-	SDL_Surface* newSurface = SDL_CreateSurfaceFrom(
-		width,
-		height,
-		SDL_PIXELFORMAT_RGB24,
-		imageRawData,
-		pitch
-	);
-
-	if (!newSurface)
+	if (!renderer_)
 	{
-		std::cerr << "Failed to create image surface: " << SDL_GetError() << std::endl;
 		return;
 	}
 
-	SDL_Rect destRect = { 0, 0, windowWidth_, windowHeight_ };
-
-	if (!SDL_BlitSurfaceScaled(newSurface, nullptr, windowSurface_, &destRect, SDL_SCALEMODE_NEAREST)) 
+	if (!cameraTexture_ || currentTextureWidth_ != width || currentTextureHeight_ != height)
 	{
-		std::cerr << "Failed to blit scaled surface: " << SDL_GetError() << std::endl;
-		SDL_DestroySurface(newSurface);
-		return;
+		if (cameraTexture_)
+		{
+			SDL_DestroyTexture(cameraTexture_);
+		}
+
+		// Change the pixel format here to RGB24 to support RGB888 data
+		cameraTexture_ = SDL_CreateTexture(
+			renderer_,
+			SDL_PIXELFORMAT_RGB24,
+			SDL_TEXTUREACCESS_STREAMING,
+			width,
+			height
+		);
+
+		currentTextureWidth_ = width;
+		currentTextureHeight_ = height;
 	}
 
-	SDL_UpdateWindowSurface(window_);
-	SDL_DestroySurface(newSurface);
+	if (cameraTexture_)
+	{
+		SDL_UpdateTexture(cameraTexture_, nullptr, imageRawData, width * 3);
+
+		SDL_RenderClear(renderer_);
+		SDL_RenderTexture(renderer_, cameraTexture_, nullptr, nullptr);
+		SDL_RenderPresent(renderer_);
+	}
 }

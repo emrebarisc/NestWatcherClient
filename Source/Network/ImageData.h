@@ -1,14 +1,16 @@
 #pragma once
 
-#include "Managers/NetworkManager.h"
+#include <cstdint>
 
-class alignas(sizeof(uint8_t*)) ImageData
+#pragma pack(push, 1)
+class ImageData
 {
 public:
-	ImageData() = default;
-	~ImageData() = default;
-
-	int rowIndex{ 0 };
-	int sectionIndex{ 0 };
-	uint8_t row[CAMERA_WIDTH]{ };
+    uint32_t frameId{ 0 };
+    uint16_t chunkIndex{ 0 };
+    uint16_t totalChunks{ 0 };
+    uint16_t dataSize{ 0 };
+    uint8_t data[1024];
 };
+
+#pragma pack(pop)
